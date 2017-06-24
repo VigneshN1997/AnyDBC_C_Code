@@ -28,7 +28,13 @@ map<int, set<int> > edgeUnknown;
 map<int, int> visitedNode;
 
 
+map<int, int> usizeList;
+map<int, double> statList;
+map<int, double> degList;
+
+
 int alpha = 100;
+int beta = 50;
 int minDist = 2;
 int minPts = 5;
 
@@ -44,7 +50,31 @@ void createPCIR(int point);
 int ddcBetPCIR(int core1,int core2,int dimension);
 void connComp();
 void DFS(int u, int rep);
+void calculateStatDegree(int num_records);
+vector<int> calculateScore(int num_records);
+bool stoppingCondition();
+void processOutliers();
 //typedef std::numeric_limits< double > db1;
+
+
+template<typename A, typename B>
+std::pair<B,A> flip_pair(const std::pair<A,B> &p)
+{
+    return std::pair<B,A>(p.second, p.first);
+}
+
+template<typename A, typename B>
+std::multimap<B,A> flip_map(const std::map<A,B> &src)
+{
+    std::multimap<B,A> dst;
+    std::transform(src.begin(), src.end(), std::inserter(dst, dst.begin()), 
+                   flip_pair<A,B>);
+    return dst;
+}
+
+
+
+
 
 double** readData(char* file_name,int* num_records, int* dimension)
 {
@@ -437,6 +467,189 @@ void DFS(int u, int rep)
 	}
 }
 
+void calculateStatDegree(int num_records)
+{
+	int w = clusters.size();
+	map<int, int> numBorderPoints;
+	map<int, set<int> >::iterator clus_itr;
+	vector<int> alreadyCountedPoint;
+	set<int>::iterator v_itr;		// v iterator
+	set<int>::iterator nei_itr;		//neighbourMap[p] iterator
+	vector<int>::iterator al_itr; 	// alreadyCountedPoint iterator
+	set<int>::iterator range_itr;	//rangeQueryPerformed iterator
+	map<int, string>::iterator border_itr;//borderList iterator
+	for(clus_itr = clusters.begin(); clus_itr != clusters.end(); clus_itr++)
+	{
+		int k = clus_itr->first;
+		set<int> v = clus_itr->second;
+		usizeList.insert(pair<int,int>(k,0));
+		statList.insert(pair<int,double>(k,0));
+		numBorderPoints.insert(pair<int,int>(k,0));
+		int noOfpointsInCluster = 0;
+		alreadyCountedPoint.clear();
+		for(v_itr = v.begin(); v_itr != v.end(); v_itr++)
+		{
+			int p = *v_itr;
+			for(nei_itr = neighbourMap[p].begin(); nei_itr!= neighbourMap[p].end(); nei_itr++)
+			{
+				int x = *nei_itr;
+				al_itr = find(alreadyCountedPoint.begin(),alreadyCountedPoint.end(),x);
+				if(al_itr == alreadyCountedPoint.end())
+				{
+					noOfpointsInCluster++;
+					range_itr = find(rangeQueryPerformed.begin(),rangeQueryPerformed.end(),x);
+					if(range_itr == rangeQueryPerformed.end())
+					{
+						usizeList[k]++;
+					}
+					border_itr = borderList.find(x);
+					if(border_itr != borderList.end())
+					{
+						numBorderPoints[k]++;
+					}
+					alreadyCountedPoint.push_back(x);
+				}
+			}
+		}
+		statList[k] = ((double)usizeList[k]/(double)noOfpointsInCluster) + ((double)noOfpointsInCluster/(double)num_records);
+	}
+	map<int, set<int> >::iterator edgeWeakItr;
+	map<int, set<int> >::iterator edgeWeakItr2;
+	map<int, set<int> >::iterator edgeUnknownItr;
+	map<int, set<int> >::iterator edgeUnknownItr2;
+	set<int>::iterator weak_itr;
+	set<int>::iterator un_itr;
+	map<int, double>::iterator stat_itr; //statList iterator
+	for(clus_itr = clusters.begin(); clus_itr != clusters.end(); clus_itr++)
+	{
+		int u = clus_itr->first;
+		int siValue = 0;
+		degList.insert(pair<int,double>(u,0));
+		edgeWeakItr = edgeWeak.find(u);
+		if(edgeWeakItr != edgeWeak.end())
+		{
+			for(weak_itr = edgeWeak[u].begin(); weak_itr != edgeWeak[u].end(); weak_itr++)
+			{
+				int v = *weak_itr;
+				stat_itr = statList.find(v);
+				if(stat_itr != statList.end())
+				{
+					degList[u]+=statList[v];
+					siValue++;
+				}
+				else
+				{
+					edgeWeakItr2 = edgeWeak.find(v);
+					if(edgeWeakItr2 != edgeWeak.end())
+					{
+						edgeWeak.erase(edgeWeakItr2);
+					}
+				}
+			}
+			degList[u] *= w;
+		}
+		edgeUnknownItr = edgeUnknown.find(u);
+		if(edgeUnknownItr != edgeUnknown.end())
+		{
+			for(un_itr = edgeUnknown[u].begin(); un_itr != edgeUnknown[u].end(); un_itr++)
+			{
+				int v = *un_itr;
+				stat_itr = statList.find(v);
+				if(stat_itr != statList.end())
+				{
+					degList[u]+=statList[v];
+					siValue++;
+				}
+				else
+				{
+					edgeUnknownItr2 = edgeUnknown.find(v);
+					if(edgeUnknownItr2 != edgeUnknown.end())
+					{
+						edgeUnknown.erase(edgeUnknownItr2);
+					}
+				}
+			}
+		}
+		if(numBorderPoints[u] == 0)
+		{
+			siValue = 0;
+		}
+		degList[u] -= siValue;
+	}
+}
+
+vector<int> calculateScore(int num_records)
+{
+	map<int, double> scoreSet;
+	set<int> unprocessedPoints;
+	set<int> range;
+	set<int>::iterator unp_itr;
+	map<int, string>::iterator core_itr;
+	map<int, string>::iterator border_itr;
+	map<int, set<int> >::iterator clus_itr;
+	for(int i = 0; i < num_records; i++)
+	{
+		range.insert(i);
+	}
+	set_difference(range.begin(),range.end(),rangeQueryPerformed.begin(),rangeQueryPerformed.end(),std::inserter(unprocessedPoints,unprocessedPoints.begin()));
+	set<int> unprocessedPoints1;
+	set_difference(unprocessedPoints.begin(),unprocessedPoints.end(),neiNoise.begin(),neiNoise.end(),std::inserter(unprocessedPoints1,unprocessedPoints1.begin()));
+	unprocessedPoints = unprocessedPoints1;
+	for(unp_itr = unprocessedPoints.begin(); unp_itr != unprocessedPoints.end(); unp_itr++)
+	{
+		int i = *unp_itr;
+		core_itr = coreList.find(i);
+		border_itr = borderList.find(i);
+		if(core_itr != coreList.end() || border_itr != borderList.end())
+		{
+			double score = 0;
+			for(clus_itr = clusters.begin(); clus_itr != clusters.end(); clus_itr++)
+			{
+				int rep = clus_itr->first;
+				set<int> coreListRep = clus_itr->second;
+				set<int> intersectCore;
+				set_intersection(coreForPointMap[i].begin(),coreForPointMap[i].end(),coreListRep.begin(),coreListRep.end(),std::inserter(intersectCore,intersectCore.begin()));
+				if(intersectCore.size() > 0)
+				{
+					score += degList[rep];
+				}
+			}
+			score += ((double)1)/((double)neighbourMap[i].size());
+			scoreSet.insert(pair<int,double>(i,score));
+		}
+	}
+
+   	multimap<double, int> sorted_x = flip_map(scoreSet);
+   	multimap<double, int>::reverse_iterator sorted_itr;
+   	vector<int> returnList;
+   	int betaF = beta;
+   	if(sorted_x.size() > 0)
+   	{
+   	    if(sorted_x.size() < betaF)
+   	    {
+   	        betaF = sorted_x.size();
+   	    }
+   	    sorted_itr=sorted_x.rbegin();
+   	    for(int i = 0; i < betaF; i++)
+   	    {
+   	        returnList.push_back(sorted_itr->second);
+   	        sorted_itr++;
+   	    }
+   	}
+   	return returnList;
+
+}
+
+bool stoppingCondition()
+{
+	return false;
+}
+
+void processOutliers()
+{
+	
+}
+
 
 void anyDBC(int num_records, int dimension)
 {	//STARTING STEP:1
@@ -578,9 +791,40 @@ void anyDBC(int num_records, int dimension)
 	if(edgeYes.size() > 0)
 	{
 		connComp();
-		//mergeAssignNewEdge();
+		//mergeAssignNewEdge(); //implement it
 	}
 	int iteration = 0;
+	while(true)
+	{
+		cout << "Range queries : " << rangeQueryPerformed.size() << "\n";
+		cout << "Iteration : " << iteration << "    No. of clusters : " << clusters.size() << "\n";
+       	cout << "CoreList : " << coreList.size() << "\n";
+       	cout << "BorderList : " << borderList.size() << "\n";
+       	cout << "NoiseList : " << noiseList.size() + neiNoise.size();
+		if(stoppingCondition()) //implement it
+		{
+			/*######################################################################*/
+			calculateStatDegree(num_records);
+			vector<int> betaPoints = calculateScore(num_records);
+			if(betaPoints.size() == 0)
+			{
+				break;
+			}
+			/*######################################################################*/
+			vector<int>::iterator beta_itr;
+			for(beta_itr = betaPoints.begin(); beta_itr != betaPoints.end(); beta_itr++)
+			{
+
+			}
+		}
+		else
+		{
+			break;
+		}
+		iteration++;
+	}
+	processOutliers();
+
 }
 
 int main(int argc, char* argv[])
