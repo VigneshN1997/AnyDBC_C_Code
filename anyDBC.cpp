@@ -208,11 +208,11 @@ vector<int> assignStateNei(int point, set<int> listOfNeighbors)
 	set<int>::iterator it_rqp;			//iterator for rangeQueryPerformed
 	set<int>::iterator it_nn;			//iterator for neiNoise
 	set<int>::iterator itr_nei;				//iterator for listOfNeighbours
-	neighbourMap.insert(pair <int, set<int> >(point, listOfNeighbors));
+	neighbourMap[point] = listOfNeighbors;
 	int i;
 	if(listOfNeighbors.size() >= minPts)
 	{
-		coreList.insert(pair <int, string>(point,"PROCESSED"));
+		coreList[point] = "PROCESSED";
 		itr = borderList.find(point);
 		if(itr != borderList.end())
 		{
@@ -231,7 +231,7 @@ vector<int> assignStateNei(int point, set<int> listOfNeighbors)
 			if(it_cfpm == coreForPointMap.end())
 			{
 				set<int> s;
-				coreForPointMap.insert(pair<int,set<int> >(nei,s));
+				coreForPointMap[nei] = s;
 			}
 			coreForPointMap[nei].insert(point);
 			it_rqp = find(rangeQueryPerformed.begin(),rangeQueryPerformed.end(),nei);
@@ -241,7 +241,7 @@ vector<int> assignStateNei(int point, set<int> listOfNeighbors)
 				if(it_nm == neighbourMap.end())
 				{
 					set<int> s;
-					neighbourMap.insert(pair<int,set<int> >(nei,s));
+					neighbourMap[nei] = s;
 				}
 				neighbourMap[nei].insert(point);
 				if(neighbourMap[nei].size() < minPts)
@@ -252,11 +252,11 @@ vector<int> assignStateNei(int point, set<int> listOfNeighbors)
 						it_rqp = find(rangeQueryPerformed.begin(),rangeQueryPerformed.end(),nei);
 						if(it_rqp != rangeQueryPerformed.end())
 						{
-							borderList.insert(pair<int,string>(nei,"PROCESSED"));
+							borderList[nei] = "PROCESSED";
 						}
 						else
 						{
-							borderList.insert(pair<int,string>(nei,"UNPROCESSED"));
+							borderList[nei] = "UNPROCESSED";
 						}
 					}
 				}
@@ -265,7 +265,7 @@ vector<int> assignStateNei(int point, set<int> listOfNeighbors)
 					itr_core = coreList.find(nei);
 					if(itr_core == coreList.end())
 					{
-						coreList.insert(pair<int,string>(nei,"UNPROCESSED"));
+						coreList[nei] = "UNPROCESSED";
 						itr = borderList.find(nei);
 						if(itr != borderList.end())
 						{
@@ -302,7 +302,7 @@ vector<int> assignStateNei(int point, set<int> listOfNeighbors)
 			if(it_nm == neighbourMap.end())
 			{
 				set<int> s;
-				neighbourMap.insert(pair<int,set<int> >(nei,s));
+				neighbourMap[nei] = s;
 			}
 			neighbourMap[nei].insert(point);
 		}
@@ -314,7 +314,7 @@ vector<int> assignStateNei(int point, set<int> listOfNeighbors)
 void createPCIR(int point)
 {
 	set<int> s;
-	clusters.insert(pair<int,set<int> >(point,s));
+	clusters[point] = s;
 	clusters[point].insert(point);
 }
 
@@ -447,7 +447,7 @@ void connComp()
 
 void DFS(int u, int rep)
 {
-	visitedNode.insert(pair<int, int>(u,rep));
+	visitedNode[u] = rep;
 	set<int>::iterator clus_itr;
 	for(clus_itr = clusters[u].begin(); clus_itr != clusters[u].end(); clus_itr++)
 	{
@@ -482,9 +482,9 @@ void calculateStatDegree(int num_records)
 	{
 		int k = clus_itr->first;
 		set<int> v = clus_itr->second;
-		usizeList.insert(pair<int,int>(k,0));
-		statList.insert(pair<int,double>(k,0));
-		numBorderPoints.insert(pair<int,int>(k,0));
+		usizeList[k] = 0;
+		statList[k] = 0;
+		numBorderPoints[k] = 0;
 		int noOfpointsInCluster = 0;
 		alreadyCountedPoint.clear();
 		for(v_itr = v.begin(); v_itr != v.end(); v_itr++)
@@ -524,7 +524,7 @@ void calculateStatDegree(int num_records)
 	{
 		int u = clus_itr->first;
 		int siValue = 0;
-		degList.insert(pair<int,double>(u,0));
+		degList[u] = 0;
 		edgeWeakItr = edgeWeak.find(u);
 		if(edgeWeakItr != edgeWeak.end())
 		{
@@ -615,7 +615,7 @@ vector<int> calculateScore(int num_records)
 				}
 			}
 			score += ((double)1)/((double)neighbourMap[i].size());
-			scoreSet.insert(pair<int,double>(i,score));
+			scoreSet[i] = score;
 		}
 	}
 
@@ -647,7 +647,7 @@ bool stoppingCondition()
 
 void processOutliers()
 {
-	
+
 }
 
 
@@ -723,14 +723,14 @@ void anyDBC(int num_records, int dimension)
 				if(edgeNoItr == edgeNo.end())
 				{
 					set<int> s;
-					edgeNo.insert(pair<int,set<int> >(point,s));
+					edgeNo[point] = s;
 				}
 				edgeNo[point].insert(neiPoint);
 				edgeNoItr = edgeNo.find(neiPoint);
 				if(edgeNoItr == edgeNo.end())
 				{
 					set<int> s;
-					edgeNo.insert(pair<int,set<int> >(neiPoint,s));
+					edgeNo[neiPoint] = s;
 				}
 				edgeNo[neiPoint].insert(point); 
 			}
@@ -740,14 +740,14 @@ void anyDBC(int num_records, int dimension)
 				if(edgeYesItr == edgeYes.end())
 				{
 					set<int> s;
-					edgeYes.insert(pair<int,set<int> >(point,s));
+					edgeYes[point] = s;
 				}
 				edgeYes[point].insert(neiPoint);
 				edgeYesItr = edgeYes.find(neiPoint);
 				if(edgeYesItr == edgeYes.end())
 				{
 					set<int> s;
-					edgeYes.insert(pair<int,set<int> >(neiPoint,s));
+					edgeYes[neiPoint] = s;
 				}
 				edgeYes[neiPoint].insert(point); 
 			}
@@ -757,14 +757,14 @@ void anyDBC(int num_records, int dimension)
 				if(edgeWeakItr == edgeWeak.end())
 				{
 					set<int> s;
-					edgeWeak.insert(pair<int,set<int> >(point,s));
+					edgeWeak[point] = s;
 				}
 				edgeWeak[point].insert(neiPoint);
 				edgeWeakItr = edgeWeak.find(neiPoint);
 				if(edgeWeakItr == edgeWeak.end())
 				{
 					set<int> s;
-					edgeWeak.insert(pair<int,set<int> >(neiPoint,s));
+					edgeWeak[neiPoint] = s;
 				}
 				edgeWeak[neiPoint].insert(point); 
 			}
@@ -774,14 +774,14 @@ void anyDBC(int num_records, int dimension)
 				if(edgeUnknownItr == edgeUnknown.end())
 				{
 					set<int> s;
-					edgeUnknown.insert(pair<int,set<int> >(point,s));
+					edgeUnknown[point] = s;
 				}
 				edgeUnknown[point].insert(neiPoint);
 				edgeUnknownItr = edgeUnknown.find(neiPoint);
 				if(edgeUnknownItr == edgeUnknown.end())
 				{
 					set<int> s;
-					edgeUnknown.insert(pair<int,set<int> >(neiPoint,s));
+					edgeUnknown[neiPoint] = s;
 				}
 				edgeUnknown[neiPoint].insert(point); 				
 			}
@@ -812,9 +812,114 @@ void anyDBC(int num_records, int dimension)
 			}
 			/*######################################################################*/
 			vector<int>::iterator beta_itr;
+			set<int>::iterator range_itr;
 			for(beta_itr = betaPoints.begin(); beta_itr != betaPoints.end(); beta_itr++)
 			{
-
+				int point = *beta_itr;
+				range_itr = find(rangeQueryPerformed.begin(),rangeQueryPerformed.end(),point);
+				set<int> listOfNeighbors;
+				set<int>::iterator lon_itr;
+				map<int,set<int> >::iterator nm_itr; //iterator for neighbourMap
+				map<int, string>::iterator border_itr;
+				map<int, string>::iterator core_itr;
+				map<int,set<int> >::iterator cfpm_itr;
+				if(range_itr != rangeQueryPerformed.end())
+				{
+					listOfNeighbors = neighbourMap[point];
+				}
+				else
+				{
+					listOfNeighbors = performRangeQuery(point,num_records,dimension);
+				}
+				if(listOfNeighbors.size() < minPts)
+				{
+					borderList[point] = "PROCESSED";
+					for(lon_itr = listOfNeighbors.begin(); lon_itr != listOfNeighbors.end(); lon_itr++)
+					{
+						int nei = *lon_itr;
+						range_itr = find(rangeQueryPerformed.begin(),rangeQueryPerformed.end(),nei);
+						if(range_itr == rangeQueryPerformed.end())
+						{
+							nm_itr = neighbourMap.find(nei);
+							if(nm_itr == neighbourMap.end())
+							{
+								set<int> s;
+								neighbourMap[nei] = s;
+							}
+							neighbourMap[nei].insert(point);
+						}
+					}
+				}
+				else
+				{
+					coreList[point] = "PROCESSED";
+					border_itr = borderList.find(point);
+					if(border_itr != borderList.end())
+					{
+						borderList.erase(border_itr);
+					}
+					for(lon_itr = listOfNeighbors.begin(); lon_itr != listOfNeighbors.end(); lon_itr++)
+					{
+						int nei = *lon_itr;
+						cfpm_itr = coreForPointMap.find(nei);
+						if(cfpm_itr == coreForPointMap.end())
+						{
+							set<int> s;
+							coreForPointMap[nei] = s;
+						}
+						coreForPointMap[nei].insert(point);
+						range_itr = find(rangeQueryPerformed.begin(),rangeQueryPerformed.end(),nei);
+						if(range_itr == rangeQueryPerformed.end())
+						{
+							nm_itr = neighbourMap.find(nei);
+							if(nm_itr == neighbourMap.end())
+							{
+								set<int> s;
+								neighbourMap[nei] = s;
+							}
+							neighbourMap[nei].insert(point);
+							if(neighbourMap[nei].size() < minPts)
+							{
+								border_itr = borderList.find(nei);
+								if(border_itr == borderList.end())
+								{
+									range_itr = find(rangeQueryPerformed.begin(),rangeQueryPerformed.end(),nei);
+									if(range_itr != rangeQueryPerformed.end())
+									{
+										borderList[nei] = "PROCESSED";
+									}
+									else
+									{
+										borderList[nei] = "UNPROCESSED";
+									}
+								}
+							}
+							else
+							{
+								core_itr = coreList.find(nei);
+								if(core_itr == coreList.end())
+								{
+									coreList[nei] = "UNPROCESSED";
+									border_itr = borderList.find(nei);
+									if(border_itr != borderList.end())
+									{
+										borderList.erase(border_itr);
+									}
+								}
+							}
+						}
+					}
+					createPCIR(point);
+					map<int, set<int> >::iterator clus_itr;
+					for(clus_itr = clusters.begin(); clus_itr != clusters.end(); clus_itr++)
+					{
+						int repCore = clus_itr->first;
+						if(point != repCore)
+						{
+							// dccBetPCLU(repCore,point);
+						}
+					}
+				}
 			}
 		}
 		else
@@ -824,7 +929,6 @@ void anyDBC(int num_records, int dimension)
 		iteration++;
 	}
 	processOutliers();
-
 }
 
 int main(int argc, char* argv[])
