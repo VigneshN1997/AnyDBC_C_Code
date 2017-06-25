@@ -34,29 +34,34 @@ map<int, double> degList;
 
 vector<int> popFromNoise;
 
+
+int dimension = 0;
+int num_records = 0;
 int alpha = 100;
 int beta = 50;
 int minDist = 2;
 int minPts = 5;
 
-double** readData(char* file_name,int* num_records, int* dimension);
+double** readData(char* file_name);
 vector<int> pick(int N, int k);
 std::unordered_set<int> pickSet(int N, int k, std::mt19937& gen);
-void anyDBC(int num_records, int dimension);
+void anyDBC();
 vector<int> getRandomPoints(vector<int> untouchedList);
-double distance(double* a,double* b, int dimension);
-set<int> performRangeQuery(int point, int num_records,int dimension);
+double distance(double* a,double* b);
+set<int> performRangeQuery(int point);
 vector<int> assignStateNei(int point, set<int> listOfNeighbors);
 void createPCIR(int point);
-int ddcBetPCIR(int core1,int core2,int dimension);
+int ddcBetPCIR(int core1,int core2);
 void connComp();
 void DFS(int u, int rep);
-void calculateStatDegree(int num_records);
-vector<int> calculateScore(int num_records);
+void calculateStatDegree();
+vector<int> calculateScore();
+void dccBetPCLU(int repClust1, int repClust2);
+void updateStates();
 bool stoppingCondition();
+void processNoise(int p);
 void processOutliers();
 //typedef std::numeric_limits< double > db1;
-
 
 template<typename A, typename B>
 std::pair<B,A> flip_pair(const std::pair<A,B> &p)
@@ -73,27 +78,23 @@ std::multimap<B,A> flip_map(const std::map<A,B> &src)
     return dst;
 }
 
-
-
-
-
-double** readData(char* file_name,int* num_records, int* dimension)
+double** readData(char* file_name)
 {
 	ifstream fp;
 	fp.open(file_name);
 	
-	fp >> *num_records;
-	fp >> *dimension;
-	double** dataSet = (double**)malloc((*num_records)*sizeof(double*));
+	fp >> num_records;
+	fp >> dimension;
+	double** dataSet = (double**)malloc((num_records)*sizeof(double*));
 	int record_num,field_num;
-	for(record_num = 0; record_num < *num_records; record_num++)
+	for(record_num = 0; record_num < num_records; record_num++)
 	{
-		dataSet[record_num] = (double*)malloc((*dimension)*sizeof(double));
+		dataSet[record_num] = (double*)malloc((dimension)*sizeof(double));
 	}
 
-	for(record_num = 0; record_num < *num_records; record_num++)
+	for(record_num = 0; record_num < num_records; record_num++)
 	{
-		for(field_num = 0; field_num < *dimension; field_num++)
+		for(field_num = 0; field_num < dimension; field_num++)
 		{
 			fp >> dataSet[record_num][field_num];
 		}
@@ -101,7 +102,6 @@ double** readData(char* file_name,int* num_records, int* dimension)
 	// fclose(fp);
 	return dataSet;
 }
-
 
 vector<int> pick(int N, int k) {
     std::random_device rd;
@@ -137,7 +137,6 @@ std::unordered_set<int> pickSet(int N, int k, std::mt19937& gen)
     return elems;
 }
 
-
 vector<int> getRandomPoints(vector<int> untouchedList)
 {
 	vector<int> randomPoints;
@@ -161,19 +160,18 @@ vector<int> getRandomPoints(vector<int> untouchedList)
 	return randomPoints;
 }
 
-double distance(double* a,double* b, int dimension)
+double distance(double* a,double* b)
 {
 	double distance = 0;
 	int i;
 	for(i = 0; i < dimension; i++)
 	{
 		distance = distance + pow((a[i]-b[i]),2);
-		cout << distance << "\n";
 	}
 	return sqrt(distance);
 }
 
-set<int> performRangeQuery(int point, int num_records,int dimension)
+set<int> performRangeQuery(int point)
 {
 	double* point_a_coordinates = dataSet[point];
 	double* point_b_coordinates;
@@ -183,13 +181,11 @@ set<int> performRangeQuery(int point, int num_records,int dimension)
 	for(i = 0; i < num_records; i++)
 	{
 		point_b_coordinates = dataSet[i];
-		if(point_b_coordinates == point_a_coordinates)
+		if(point_b_coordinates == point_a_coordinates) // point==i
 		{
 			continue;
 		}
-		double dist = distance(point_a_coordinates,point_b_coordinates,dimension);
-		cout.precision(7);
-		cout << fixed <<point_a_coordinates[0]<<" "<< point_b_coordinates[0] << " " <<dist << "\n";
+		double dist = distance(point_a_coordinates,point_b_coordinates);
 		if(dist <= minDist)
 		{
 			neighbourPoints.insert(i);
@@ -283,7 +279,7 @@ vector<int> assignStateNei(int point, set<int> listOfNeighbors)
 		it_nn = find(neiNoise.begin(),neiNoise.end(),point);
 		if(it_nn != neiNoise.end())
 		{
-			neiNoise.erase(point);
+			neiNoise.erase(it_nn);
 		}
 		for(itr_nei = listOfNeighbors.begin(); itr_nei != listOfNeighbors.end(); itr_nei++)
 		{
@@ -295,7 +291,7 @@ vector<int> assignStateNei(int point, set<int> listOfNeighbors)
 			}
 			itr_core = coreList.find(nei);
 			itr = borderList.find(nei);
-			if(itr_core == coreList.end() && itr == borderList.end())
+			if((itr_core == coreList.end()) && (itr == borderList.end()))
 			{
 				neiNoise.insert(nei);
 			}
@@ -319,9 +315,9 @@ void createPCIR(int point)
 	clusters[point].insert(point);
 }
 
-int ddcBetPCIR(int core1,int core2,int dimension)
+int ddcBetPCIR(int core1,int core2)
 {
-	double dist = distance(dataSet[core1],dataSet[core2],dimension);
+	double dist = distance(dataSet[core1],dataSet[core2]);
 	if(dist > 3*minDist)
 	{
 		return 1;
@@ -468,7 +464,7 @@ void DFS(int u, int rep)
 	}
 }
 
-void calculateStatDegree(int num_records)
+void calculateStatDegree()
 {
 	int w = clusters.size();
 	map<int, int> numBorderPoints;
@@ -579,7 +575,7 @@ void calculateStatDegree(int num_records)
 	}
 }
 
-vector<int> calculateScore(int num_records)
+vector<int> calculateScore()
 {
 	map<int, double> scoreSet;
 	set<int> unprocessedPoints;
@@ -641,7 +637,7 @@ vector<int> calculateScore(int num_records)
 
 }
 
-void dccBetPCLU(int repClust1, int repClust2, int dimension)
+void dccBetPCLU(int repClust1, int repClust2)
 {
 	int noOfSubClusters = clusters[repClust1].size()*clusters[repClust2].size();
 	int noCount = 0;
@@ -664,7 +660,7 @@ void dccBetPCLU(int repClust1, int repClust2, int dimension)
 			{
 				continue;
 			}
-			int stat = ddcBetPCIR(core1,core2,dimension);
+			int stat = ddcBetPCIR(core1,core2);
 			if(stat == 0)
 			{
 				formedYesEdge = true;
@@ -924,7 +920,7 @@ bool stoppingCondition()
 	return false;
 }
 
-void processNoise(int p,int num_records,int dimension)
+void processNoise(int p)
 {
 
 	map<int, string>::iterator core_itr;
@@ -966,7 +962,7 @@ void processNoise(int p,int num_records,int dimension)
 			}
 			else
 			{
-				listOfNeighbors = performRangeQuery(nei,num_records,dimension);
+				listOfNeighbors = performRangeQuery(nei);
 				neighbourMap[nei] = listOfNeighbors;
 			}
 			for(lon_itr = listOfNeighbors.begin(); lon_itr != listOfNeighbors.end(); lon_itr++)
@@ -1011,7 +1007,7 @@ void processNoise(int p,int num_records,int dimension)
 					int repCore = clus_itr->first;
 					if(nei != repCore)
 					{
-						dccBetPCLU(repCore, nei,dimension);
+						dccBetPCLU(repCore, nei);
 					}
 				}
 				break;
@@ -1020,7 +1016,7 @@ void processNoise(int p,int num_records,int dimension)
 	}
 }
 
-void processOutliers(int num_records,int dimension)
+void processOutliers()
 {
 	set<int>::iterator noise_itr;
 	vector<int>::iterator pfn_itr; //popFromNoise iterator
@@ -1033,7 +1029,7 @@ void processOutliers(int num_records,int dimension)
 	for(noise_itr = noiseList.begin(); noise_itr != noiseList.end(); noise_itr++)
 	{
 		int p = *noise_itr;
-		processNoise(p,num_records,dimension);
+		processNoise(p);
 	}
 	for(pfn_itr = popFromNoise.begin(); pfn_itr != popFromNoise.end(); pfn_itr++)
 	{
@@ -1069,7 +1065,7 @@ void processOutliers(int num_records,int dimension)
 		}
 		else
 		{
-			listNei = performRangeQuery(p,num_records,dimension);
+			listNei = performRangeQuery(p);
 			neighbourMap[p] = listNei;
 		}
 		bool isCore = false;
@@ -1089,7 +1085,7 @@ void processOutliers(int num_records,int dimension)
 				int repCore = clus_itr->first;
 				if(p != repCore)
 				{
-					dccBetPCLU(repCore, p,dimension);
+					dccBetPCLU(repCore, p);
 				}
 			}
 		}
@@ -1121,7 +1117,7 @@ void processOutliers(int num_records,int dimension)
 				borderList[nei] = "UNPROCESSED";
 			}
 		}
-		processNoise(p,num_records,dimension);
+		processNoise(p);
 	}
 	for(pfn_itr = popFromNoise.begin(); pfn_itr != popFromNoise.end(); pfn_itr++)
 	{
@@ -1141,7 +1137,7 @@ void processOutliers(int num_records,int dimension)
 }
 
 
-void anyDBC(int num_records, int dimension)
+void anyDBC()
 {	//STARTING STEP:1
 	vector<int> untouchedList;
 	vector<int>::iterator itr; 				//iterator for untouchedList
@@ -1165,7 +1161,7 @@ void anyDBC(int num_records, int dimension)
 			if(itr != untouchedList.end()) // test this function
 			{
 				untouchedList.erase(itr);
-				set<int> neighbours_of_point = performRangeQuery(point,num_records,dimension);
+				set<int> neighbours_of_point = performRangeQuery(point);
 				vector<int> touch = assignStateNei(point,neighbours_of_point);
 				itr_core = coreList.find(point);
 				if(itr_core != coreList.end())
@@ -1206,7 +1202,7 @@ void anyDBC(int num_records, int dimension)
 			{
 				continue;
 			}
-			int stat = ddcBetPCIR(point,neiPoint,dimension);
+			int stat = ddcBetPCIR(point,neiPoint);
 			if(stat == 1)
 			{
 				edgeNoItr = edgeNo.find(point);
@@ -1294,8 +1290,8 @@ void anyDBC(int num_records, int dimension)
 		if(stoppingCondition()) //implement it
 		{
 			/*######################################################################*/
-			calculateStatDegree(num_records);
-			vector<int> betaPoints = calculateScore(num_records);
+			calculateStatDegree();
+			vector<int> betaPoints = calculateScore();
 			if(betaPoints.size() == 0)
 			{
 				break;
@@ -1319,7 +1315,7 @@ void anyDBC(int num_records, int dimension)
 				}
 				else
 				{
-					listOfNeighbors = performRangeQuery(point,num_records,dimension);
+					listOfNeighbors = performRangeQuery(point);
 				}
 				if(listOfNeighbors.size() < minPts)
 				{
@@ -1406,7 +1402,7 @@ void anyDBC(int num_records, int dimension)
 						int repCore = clus_itr->first;
 						if(point != repCore)
 						{
-							dccBetPCLU(repCore,point,dimension);
+							dccBetPCLU(repCore,point);
 						}
 					}
 				}
@@ -1430,7 +1426,7 @@ void anyDBC(int num_records, int dimension)
 		}
 		iteration++;
 	}
-	processOutliers(num_records,dimension);
+	processOutliers();
 	if(edgeYes.size() > 0)
 	{
 		connComp();
@@ -1454,11 +1450,7 @@ void anyDBC(int num_records, int dimension)
 int main(int argc, char* argv[])
 {
 	char* file_name = argv[1];
-	int num_records = 0; // number of records in file
-	int dimension = 0; // number of fields in each record;
-	
-
-	dataSet = readData(file_name,&num_records,&dimension);
+	dataSet = readData(file_name);
 	// int i,j;
 	// for(i = 0; i < num_records; i++)
 	// {
@@ -1469,6 +1461,6 @@ int main(int argc, char* argv[])
 	// 	}
 	// 	cout << "\n";
 	// }
-	anyDBC(num_records,dimension);
+	anyDBC();
 	return 0;
 }
