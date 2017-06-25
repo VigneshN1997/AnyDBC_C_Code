@@ -32,6 +32,7 @@ map<int, int> usizeList;
 map<int, double> statList;
 map<int, double> degList;
 
+vector<int> popFromNoise;
 
 int alpha = 100;
 int beta = 50;
@@ -640,14 +641,503 @@ vector<int> calculateScore(int num_records)
 
 }
 
+void dccBetPCLU(int repClust1, int repClust2, int dimension)
+{
+	int noOfSubClusters = clusters[repClust1].size()*clusters[repClust2].size();
+	int noCount = 0;
+	bool formedYesEdge = false;
+	bool formedWeakEdge = false;
+	set<int>::iterator rep1_itr;
+	set<int>::iterator rep2_itr;
+	map<int,set<int> >::iterator edgeNoItr;
+	map<int,set<int> >::iterator edgeYesItr;
+	map<int,set<int> >::iterator edgeWeakItr;
+	map<int,set<int> >::iterator edgeUnknownItr;
+	set<int>::iterator weak_itr;
+	for(rep1_itr = clusters[repClust1].begin(); rep1_itr != clusters[repClust1].end(); rep1_itr++)
+	{
+		int core1 = *rep1_itr;
+		for(rep2_itr = clusters[repClust2].begin(); rep2_itr != clusters[repClust2].end(); rep2_itr++)
+		{
+			int core2 = *rep2_itr;
+			if(core1 == core2)
+			{
+				continue;
+			}
+			int stat = ddcBetPCIR(core1,core2,dimension);
+			if(stat == 0)
+			{
+				formedYesEdge = true;
+				edgeYesItr = edgeYes.find(repClust1);
+				if(edgeYesItr == edgeYes.end())
+				{
+					set<int> s;
+					edgeYes[repClust1] = s;
+				}
+				edgeYes[repClust1].insert(repClust2);
+				edgeYesItr = edgeYes.find(repClust2);
+				if(edgeYesItr == edgeYes.end())
+				{
+					set<int> s;
+					edgeYes[repClust2] = s;
+				}
+				edgeYes[repClust2].insert(repClust1);
+				if(formedWeakEdge)
+				{
+					weak_itr = find(edgeWeak[repClust1].begin(),edgeWeak[repClust1].end(),repClust2);
+					if(weak_itr != edgeWeak[repClust1].end())
+					{
+						edgeWeak[repClust1].erase(weak_itr);
+					}
+					if(edgeWeak[repClust1].size() == 0)
+					{
+						edgeWeakItr = edgeWeak.find(repClust1);
+						if(edgeWeakItr != edgeWeak.end())
+						{
+							edgeWeak.erase(edgeWeakItr);
+						}
+					}
+					weak_itr = find(edgeWeak[repClust2].begin(),edgeWeak[repClust2].end(),repClust1);
+					if(weak_itr != edgeWeak[repClust2].end())
+					{
+						edgeWeak[repClust2].erase(weak_itr);
+					}
+					if(edgeWeak[repClust2].size() == 0)
+					{
+						edgeWeakItr = edgeWeak.find(repClust2);
+						if(edgeWeakItr != edgeWeak.end())
+						{
+							edgeWeak.erase(edgeWeakItr);
+						}
+					}
+				}
+				return;
+			}
+			else if(stat == 1)
+			{
+				noCount++;
+			}
+			else if(stat == 2 && !(formedYesEdge))
+			{
+				formedWeakEdge = true;
+				edgeWeakItr = edgeWeak.find(repClust1);
+				if(edgeWeakItr == edgeWeak.end())
+				{
+					set<int> s;
+					edgeWeak[repClust1] = s;
+				}
+				edgeWeak[repClust1].insert(repClust2);
+				edgeWeakItr = edgeWeak.find(repClust2);
+				if(edgeWeakItr == edgeWeak.end())
+				{
+					set<int> s;
+					edgeWeak[repClust2] = s;
+				}
+				edgeWeak[repClust2].insert(repClust1);
+			}
+		}
+	}
+	if(!(formedWeakEdge) && !(formedYesEdge) && (noCount == noOfSubClusters))
+	{
+		edgeNoItr = edgeNo.find(repClust1);
+		if(edgeNoItr == edgeNo.end())
+		{
+			set<int> s;
+			edgeNo[repClust1] = s;
+		}
+		edgeNo[repClust1].insert(repClust2);
+		edgeNoItr = edgeNo.find(repClust2);
+		if(edgeNoItr == edgeNo.end())
+		{
+			set<int> s;
+			edgeNo[repClust2] = s;
+		}
+		edgeNo[repClust2].insert(repClust1);
+	}
+	else if(!(formedWeakEdge) && !(formedYesEdge) && (noCount != noOfSubClusters))
+	{
+		edgeUnknownItr = edgeUnknown.find(repClust1);
+		if(edgeUnknownItr == edgeUnknown.end())
+		{
+			set<int> s;
+			edgeUnknown[repClust1] = s;
+		}
+		edgeUnknown[repClust1].insert(repClust2);
+		edgeUnknownItr = edgeUnknown.find(repClust2);
+		if(edgeUnknownItr == edgeUnknown.end())
+		{
+			set<int> s;
+			edgeUnknown[repClust2] = s;
+		}
+		edgeUnknown[repClust2].insert(repClust1);	
+	}
+	return;
+}
+
+void updateStates()
+{
+	vector<int> popWeakUnknown;
+	map<int, set<int> >::iterator clus_itr;
+	set<int>::iterator v_itr;
+	set<int>::iterator nei_itr;
+	set<int>::iterator range_itr;
+	map<int,int>::iterator usize_itr;
+	map<int,set<int> >::iterator edgeNoItr;
+	map<int,set<int> >::iterator edgeWeakItr;
+	map<int,set<int> >::iterator edgeUnknownItr;
+	set<int>::iterator node_itr;
+	set<int>::iterator weak_itr;
+	set<int>::iterator unknown_itr;
+	vector<int>::iterator pwu_itr;
+	for(clus_itr = clusters.begin(); clus_itr != clusters.end(); clus_itr++)
+	{
+		int k = clus_itr->first;
+		set<int> v = clus_itr->second;
+		usizeList[k] = 0;
+		for(v_itr = v.begin(); v_itr != v.end(); v_itr++)
+		{
+			int p = *v_itr;
+			for(nei_itr = neighbourMap[p].begin(); nei_itr != neighbourMap[p].end(); nei_itr++)
+			{
+				int x = *nei_itr;
+				range_itr = find(rangeQueryPerformed.begin(),rangeQueryPerformed.end(),x);
+				if(range_itr == rangeQueryPerformed.end())
+				{
+					usizeList[k]++;
+				}
+			}
+		}
+		usize_itr = usizeList.find(k);
+		if(usize_itr != usizeList.end())
+		{
+			if(usizeList[k] == 0)
+			{
+				for(edgeWeakItr = edgeWeak.begin(); edgeWeakItr != edgeWeak.end(); edgeWeakItr++)
+				{
+					int node = edgeWeakItr->first;
+					set<int> neiNodes = edgeWeakItr->second;
+					node_itr = find(neiNodes.begin(),neiNodes.end(),k);
+					if(k == node)
+					{
+						for(node_itr = neiNodes.begin(); node_itr != neiNodes.end(); node_itr++)
+						{
+							int knode = *node_itr;
+							edgeNoItr = edgeNo.find(k);
+							if(edgeNoItr == edgeNo.end())
+							{
+								set<int> s;
+								edgeNo[k] = s;
+							}
+							edgeNo[k].insert(knode);
+							edgeNoItr = edgeNo.find(knode);
+							if(edgeNoItr == edgeNo.end())
+							{
+								set<int> s;
+								edgeNo[knode] = s;
+							}
+							edgeNo[knode].insert(k);
+						}
+					}
+					else if(node_itr != neiNodes.end())
+					{
+						weak_itr = find(edgeWeak[node].begin(),edgeWeak[node].end(),k);
+						if(weak_itr != edgeWeak[node].end())
+						{
+							edgeWeak[node].erase(weak_itr);
+						}
+						if(edgeWeak[node].size() == 0)
+						{
+							popWeakUnknown.push_back(node);
+						}
+					}
+				}
+				for(edgeUnknownItr = edgeUnknown.begin(); edgeUnknownItr != edgeUnknown.end(); edgeUnknownItr++)
+				{
+					int node = edgeUnknownItr->first;
+					set<int> neiNodes = edgeUnknownItr->second;
+					node_itr = find(neiNodes.begin(),neiNodes.end(),k);
+					if(k == node)
+					{
+						for(node_itr = neiNodes.begin(); node_itr != neiNodes.end(); node_itr++)
+						{
+							int knode = *node_itr;
+							edgeNoItr = edgeNo.find(k);
+							if(edgeNoItr == edgeNo.end())
+							{
+								set<int> s;
+								edgeNo[k] = s;
+							}
+							edgeNo[k].insert(knode);
+							edgeNoItr = edgeNo.find(knode);
+							if(edgeNoItr == edgeNo.end())
+							{
+								set<int> s;
+								edgeNo[knode] = s;
+							}
+							edgeNo[knode].insert(k);
+						}
+					}
+					else if(node_itr != neiNodes.end())
+					{
+						unknown_itr = find(edgeUnknown[node].begin(),edgeUnknown[node].end(),k);
+						if(unknown_itr != edgeUnknown[node].end())
+						{
+							edgeUnknown[node].erase(unknown_itr);
+						}
+						if(edgeUnknown[node].size() == 0)
+						{
+							popWeakUnknown.push_back(node);
+						}
+					}
+				}
+				edgeWeakItr = edgeWeak.find(k);
+				if(edgeWeakItr != edgeWeak.end())
+				{
+					edgeWeak.erase(edgeWeakItr);
+				}
+				edgeUnknownItr = edgeUnknown.find(k);
+				if(edgeUnknownItr != edgeUnknown.end())
+				{
+					edgeUnknown.erase(edgeUnknownItr);
+				}
+			}
+		}
+	}
+	for(pwu_itr = popWeakUnknown.begin(); pwu_itr != popWeakUnknown.end(); pwu_itr++)
+	{
+		int node = *pwu_itr;
+		edgeWeakItr = edgeWeak.find(node);
+		if(edgeWeakItr != edgeWeak.end())
+		{
+			edgeWeak.erase(edgeWeakItr);
+		}
+		edgeUnknownItr = edgeUnknown.find(node);
+		if(edgeUnknownItr != edgeUnknown.end())
+		{
+			edgeUnknown.erase(edgeUnknownItr);
+		}
+	}
+}
+
 bool stoppingCondition()
 {
 	return false;
 }
 
-void processOutliers()
+void processNoise(int p,int num_records,int dimension)
 {
 
+	map<int, string>::iterator core_itr;
+	map<int, string>::iterator border_itr;
+	core_itr = coreList.find(p);
+	border_itr = borderList.find(p);
+	set<int> coreListKeys;
+	map<int, string>::iterator map_itr;
+	for(map_itr = coreList.begin(); map_itr != coreList.end(); map_itr++)
+	{
+		coreListKeys.insert(map_itr->first);
+	}
+	set<int> listOfNeighbors = neighbourMap[p];
+	set<int> intersect;
+	set_intersection(listOfNeighbors.begin(),listOfNeighbors.end(),coreListKeys.begin(),coreListKeys.end(),std::inserter(intersect,intersect.begin()));
+	
+	if((core_itr != coreList.end()) || (border_itr != borderList.end()))
+	{
+		popFromNoise.push_back(p);
+	}
+	else if(intersect.size() > 0)
+	{
+		borderList[p] = "PROCESSED";
+		popFromNoise.push_back(p);
+	}
+	else
+	{
+		set<int>::iterator range_itr;
+		set<int>::iterator nei_itr;
+		set<int>::iterator lon_itr;
+		map<int,set<int> >::iterator nm_itr;
+		for(nei_itr = neighbourMap[p].begin(); nei_itr != neighbourMap[p].end(); nei_itr++)
+		{
+			int nei = *nei_itr;
+			range_itr = find(rangeQueryPerformed.begin(),rangeQueryPerformed.end(),nei);
+			if(range_itr != rangeQueryPerformed.end())
+			{
+				listOfNeighbors = neighbourMap[nei];
+			}
+			else
+			{
+				listOfNeighbors = performRangeQuery(nei,num_records,dimension);
+				neighbourMap[nei] = listOfNeighbors;
+			}
+			for(lon_itr = listOfNeighbors.begin(); lon_itr != listOfNeighbors.end(); lon_itr++)
+			{
+				int neiN = *lon_itr;
+				range_itr = find(rangeQueryPerformed.begin(),rangeQueryPerformed.end(),neiN);
+				if(range_itr == rangeQueryPerformed.end())
+				{
+					nm_itr = neighbourMap.find(neiN);
+					if(nm_itr == neighbourMap.end())
+					{
+						set<int> s;
+						neighbourMap[neiN] = s;
+					}
+					neighbourMap[neiN].insert(nei);
+					if(neighbourMap[neiN].size() >= minPts)
+					{
+						coreList[neiN] = "UNPROCESSED";
+						border_itr = borderList.find(neiN);
+						if(border_itr != borderList.end())
+						{
+							borderList.erase(border_itr);
+						}
+					}
+				}
+			}
+			if(listOfNeighbors.size() >= minPts)
+			{
+				coreList[nei] = "PROCESSED";
+				borderList[p] = "PROCESSED";
+				popFromNoise.push_back(nei);
+				popFromNoise.push_back(p);
+				border_itr = borderList.find(nei);
+				if(border_itr != borderList.end())
+				{
+					borderList.erase(border_itr);
+				}
+				createPCIR(nei);
+				map<int,set<int> >::iterator clus_itr;
+				for(clus_itr = clusters.begin(); clus_itr != clusters.end(); clus_itr++)
+				{
+					int repCore = clus_itr->first;
+					if(nei != repCore)
+					{
+						dccBetPCLU(repCore, nei,dimension);
+					}
+				}
+				break;
+			}
+		}
+	}
+}
+
+void processOutliers(int num_records,int dimension)
+{
+	set<int>::iterator noise_itr;
+	vector<int>::iterator pfn_itr; //popFromNoise iterator
+	set<int>::iterator nn_itr; //neiNoise iterator
+	map<int, string>::iterator core_itr;
+	map<int, string>::iterator border_itr;
+	set<int>::iterator range_itr;
+	map<int, set<int> >::iterator clus_itr;
+	map<int, set<int> >::iterator nm_itr; //neighbourMap iterator
+	for(noise_itr = noiseList.begin(); noise_itr != noiseList.end(); noise_itr++)
+	{
+		int p = *noise_itr;
+		processNoise(p,num_records,dimension);
+	}
+	for(pfn_itr = popFromNoise.begin(); pfn_itr != popFromNoise.end(); pfn_itr++)
+	{
+		int p = *pfn_itr;
+		noise_itr = find(noiseList.begin(),noiseList.end(),p);
+		if(noise_itr != noiseList.end())
+		{
+			noiseList.erase(noise_itr);
+		}
+		nn_itr = find(neiNoise.begin(),neiNoise.end(),p);
+		if(nn_itr != neiNoise.end())
+		{
+			neiNoise.erase(nn_itr);
+		}
+	}
+	popFromNoise.clear();
+	set<int> listNei;
+	set<int>::iterator ln_itr; // listNei iterator
+	for(nn_itr = neiNoise.begin(); nn_itr != neiNoise.end(); nn_itr++)
+	{
+		int p = *nn_itr;
+		core_itr = coreList.find(p);
+		border_itr = borderList.find(p);
+		if((core_itr != coreList.end()) || (border_itr != borderList.end()))
+		{
+			popFromNoise.push_back(p);
+			continue;
+		}
+		range_itr = find(rangeQueryPerformed.begin(),rangeQueryPerformed.end(),p);
+		if(range_itr != rangeQueryPerformed.end())
+		{
+			listNei = neighbourMap[p];
+		}
+		else
+		{
+			listNei = performRangeQuery(p,num_records,dimension);
+			neighbourMap[p] = listNei;
+		}
+		bool isCore = false;
+		if(listNei.size() >= minPts)
+		{
+			isCore = true;
+			coreList[p] = "PROCESSED";
+			border_itr = borderList.find(p);
+			if(border_itr != borderList.end())
+			{
+				borderList.erase(border_itr);
+			}
+			popFromNoise.push_back(p);
+			createPCIR(p);
+			for(clus_itr = clusters.begin(); clus_itr != clusters.end(); clus_itr++)
+			{
+				int repCore = clus_itr->first;
+				if(p != repCore)
+				{
+					dccBetPCLU(repCore, p,dimension);
+				}
+			}
+		}
+		for(ln_itr = listNei.begin(); ln_itr != listNei.end(); ln_itr++)
+		{
+			int nei = *ln_itr;
+			range_itr = find(rangeQueryPerformed.begin(),rangeQueryPerformed.end(),nei);
+			if(range_itr == rangeQueryPerformed.end())
+			{
+				nm_itr = neighbourMap.find(nei);
+				if(nm_itr == neighbourMap.end())
+				{
+					set<int> s;
+					neighbourMap[nei] = s;
+				}
+				neighbourMap[nei].insert(p);
+				if(neighbourMap[nei].size() >= minPts)
+				{
+					coreList[nei] = "UNPROCESSED";
+					border_itr = borderList.find(nei);
+					if(border_itr != borderList.end())
+					{
+						borderList.erase(border_itr);
+					}
+				}
+			}
+			if(isCore)
+			{
+				borderList[nei] = "UNPROCESSED";
+			}
+		}
+		processNoise(p,num_records,dimension);
+	}
+	for(pfn_itr = popFromNoise.begin(); pfn_itr != popFromNoise.end(); pfn_itr++)
+	{
+		int p = *pfn_itr;
+		noise_itr = find(noiseList.begin(),noiseList.end(),p);
+		if(noise_itr != noiseList.end())
+		{
+			noiseList.erase(noise_itr);
+		}
+		nn_itr = find(neiNoise.begin(),neiNoise.end(),p);
+		if(nn_itr != neiNoise.end())
+		{
+			neiNoise.erase(nn_itr);
+		}
+	}
+	popFromNoise.clear();
 }
 
 
@@ -916,10 +1406,22 @@ void anyDBC(int num_records, int dimension)
 						int repCore = clus_itr->first;
 						if(point != repCore)
 						{
-							// dccBetPCLU(repCore,point);
+							dccBetPCLU(repCore,point,dimension);
 						}
 					}
 				}
+			}
+			/*###############################################################*/
+			if(edgeYes.size() > 0)
+			{
+				connComp();
+				//mergeAssignNewEdge(); //implement it
+			}
+			updateStates();
+			if(edgeYes.size() > 0)
+			{
+				connComp();
+				//mergeAssignNewEdge();
 			}
 		}
 		else
@@ -928,7 +1430,25 @@ void anyDBC(int num_records, int dimension)
 		}
 		iteration++;
 	}
-	processOutliers();
+	processOutliers(num_records,dimension);
+	if(edgeYes.size() > 0)
+	{
+		connComp();
+		// mergeAssignNewEdge();
+	}
+	cout << "Range queries :" << rangeQueryPerformed.size() << "\n";
+	cout << "Core list :" << coreList.size() << "\n";
+	cout << "Border List :" << borderList.size() << "\n";
+	cout << "Noise List :" << noiseList.size() << "\n";
+	set<int> range;
+	set<int> diff;
+	for(i = 0; i < num_records; i++)
+	{
+		range.insert(i);
+	}
+	set_difference(range.begin(),range.end(),rangeQueryPerformed.begin(),rangeQueryPerformed.end(),std::inserter(diff,diff.begin()));
+	cout << "Unprocessed Points :" << diff.size() << "\n";
+	cout << "len(clusters) :" << clusters.size() << "\n";
 }
 
 int main(int argc, char* argv[])
