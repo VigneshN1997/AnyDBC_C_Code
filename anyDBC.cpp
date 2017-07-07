@@ -25,6 +25,8 @@ map<int, set<int> > edgeNo;
 map<int, set<int> > edgeYes;
 map<int, set<int> > edgeWeak;
 map<int, set<int> > edgeUnknown;
+map<int, set<int> > edgeWeakBckup;
+map<int, set<int> > edgeNoBckup;
 map<int, int> visitedNode;
 
 
@@ -33,7 +35,7 @@ map<int, double> statList;
 map<int, double> degList;
 
 vector<int> popFromNoise;
-
+map<std::pair<int, int>, int> noStatusLastIteration;
 
 int dimension = 0;
 int num_records = 0;
@@ -61,6 +63,7 @@ void updateStates();
 bool stoppingCondition();
 void processNoise(int p);
 void processOutliers();
+void mergeAssignNewEdge();
 //typedef std::numeric_limits< double > db1;
 
 template<typename A, typename B>
@@ -85,7 +88,7 @@ double** readData(char* file_name)
 	
 	fp >> num_records;
 	fp >> dimension;
-	double** dataSet = (double**)malloc((num_records)*sizeof(double*));
+	dataSet = (double**)malloc((num_records)*sizeof(double*));
 	int record_num,field_num;
 	for(record_num = 0; record_num < num_records; record_num++)
 	{
@@ -915,11 +918,6 @@ void updateStates()
 	}
 }
 
-bool stoppingCondition()
-{
-	return false;
-}
-
 void processNoise(int p)
 {
 
@@ -1136,6 +1134,440 @@ void processOutliers()
 	popFromNoise.clear();
 }
 
+void mergeAssignNewEdge()
+{
+	edgeUnknown.clear();
+	set<int> eWN;
+	set<int> edgeWeakBckupKeys;
+	set<int> edgeNoBckupKeys;
+	map<int, set<int> >::iterator ewbk_itr;
+	map<int, set<int> >::iterator enbk_itr;
+	for(ewbk_itr = edgeWeakBckup.begin(); ewbk_itr != edgeWeakBckup.end(); ewbk_itr++)
+	{
+		edgeWeakBckupKeys.insert(ewbk_itr->first);
+	}
+	for(enbk_itr = edgeNoBckup.begin(); enbk_itr != edgeNoBckup.end(); enbk_itr++)
+	{
+		edgeNoBckupKeys.insert(enbk_itr->first);
+	}
+	set_union(edgeWeakBckupKeys.begin(),edgeWeakBckupKeys.end(),edgeNoBckupKeys.begin(),edgeNoBckupKeys.end(),std::inserter(eWN,eWN.begin()));
+	set<int> doneClusters;
+	map<int,set<int> >::iterator itr_clus1;
+	map<int,set<int> >::iterator itr_clus2;
+	
+	for(itr_clus1 = clusters.begin(); itr_clus1 != clusters.end(); itr_clus1++)
+	{
+        int k = itr_clus1->first;
+		set<int> v1_1;
+		set<int> v1;
+		v1_1 = clusters[k];
+        set_difference(v1_1.begin(),v1_1.end(),eWN.begin(),eWN.end(),std::inserter(v1,v1.begin()));
+        doneClusters.insert(k);
+        for(itr_clus2 = clusters.begin(); itr_clus2 != clusters.end(); itr_clus2++)
+		{
+			int k2 = itr_clus2->first;
+            set<int>::iterator doneClusters_itr;
+			doneClusters_itr = find(doneClusters.begin(),doneClusters.end(),k2);
+			if(doneClusters_itr != doneClusters.end())
+			{
+					continue;
+			}
+            set<int> v2_1;
+			set<int> v2;
+			v2_1 = clusters[k2];
+			set_difference(v2_1.begin(),v2_1.end(),eWN.begin(),eWN.end(),std::inserter(v2,v2.begin()));
+			int weakPresent = 0;
+			int noCount = 0;
+			int noOfSubClusters = (v1_1.size())*(v2.size());
+			set<int>::iterator itr_v1_1;
+			set<int>::iterator itr_v2;
+			for(itr_v1_1 = v1_1.begin(); itr_v1_1 != v1_1.end(); itr_v1_1++)
+			{
+				int point = *itr_v1_1;
+				for(itr_v2 = v2.begin(); itr_v2 != v2.end(); itr_v2++)
+				{
+					int neipoint = *itr_v2;
+					map<int, set<int> >::iterator itr_point,itr_pointe;
+					itr_point = edgeWeak.find(point);
+					itr_pointe = edgeWeakBckup.find(point);
+					if(itr_point != edgeWeak.end())
+					{
+						set<int>::iterator itr_neipoint;
+						itr_neipoint = find(edgeWeak[point].begin(),edgeWeak[point].end(),neipoint);
+						if(itr_neipoint != edgeWeak[point].end())
+						{
+							weakPresent = 1;
+							edgeWeak[point].erase(itr_neipoint);
+							set<int>::iterator itr_point2;
+							itr_point2 = find(edgeWeak[neipoint].begin(),edgeWeak[neipoint].end(),point);
+							if(itr_point2 != edgeWeak[neipoint].end())
+							{
+								edgeWeak[neipoint].erase(itr_point2);
+							}
+							if(edgeWeak[point].size()==0)
+							{
+								edgeWeak.erase(itr_point);
+							}
+							if(edgeWeak[neipoint].size()==0)
+							{
+								map<int, set<int> >::iterator itr_neipoint2;
+								itr_neipoint2 =edgeWeak.find(neipoint);
+								if(itr_neipoint2 != edgeWeak.end())
+								{
+									edgeWeak.erase(itr_neipoint2);
+								}
+							}
+							map<int, set<int> >::iterator itr_point3;
+							itr_point3 = edgeWeakBckup.find(point);
+							if(itr_point3==edgeWeakBckup.end())
+							{
+								set<int> s;
+								edgeWeakBckup[point] = s;
+							}
+							edgeWeakBckup[point].insert(neipoint);
+							
+							map<int, set<int> >::iterator itr_neipoint3;
+							itr_neipoint3 = edgeWeakBckup.find(neipoint);
+							if(itr_neipoint3==edgeWeakBckup.end())
+							{
+								set<int> s;
+								edgeWeakBckup[neipoint] = s;
+							}
+							edgeWeakBckup[neipoint].insert(point);	
+						}
+					}
+					else if( itr_pointe!=edgeWeakBckup.end())
+					{
+						set<int>::iterator itr_neipoint;
+						itr_neipoint = find(edgeWeakBckup[point].begin(),edgeWeakBckup[point].end(),neipoint);
+						if(itr_neipoint != edgeWeakBckup[point].end())
+						{
+							weakPresent = 1;
+						}	
+					}
+					itr_point = edgeNo.find(point);
+					itr_pointe = edgeNoBckup.find(point);	
+					if(itr_point!=edgeNo.end())
+					{
+						set<int>::iterator itr_neipoint;
+						itr_neipoint = find(edgeNo[point].begin(),edgeNo[point].end(),neipoint);
+						if(itr_neipoint != edgeNo[point].end())
+						{
+							noCount+=1;
+							edgeNo[point].erase(itr_neipoint);
+							set<int>::iterator itr_point2;
+							itr_point2 = find(edgeNo[neipoint].begin(),edgeNo[neipoint].end(),point);
+							if(itr_point2 != edgeNo[neipoint].end())
+							{
+								edgeNo[neipoint].erase(itr_point2);
+							}
+							if(edgeNo[point].size()==0)
+							{
+								edgeNo.erase(itr_point);
+							}
+							if(edgeNo[neipoint].size()==0)
+							{
+								map<int, set<int> >::iterator itr_neipoint2;
+								itr_neipoint2 = edgeNo.find(neipoint);
+								if(itr_neipoint2 != edgeNo.end())
+								{
+									edgeNo.erase(itr_neipoint2);
+								}
+							}
+							map<int, set<int> >::iterator itr_point3;
+							itr_point3 = edgeNoBckup.find(point);
+							if(itr_point3==edgeNoBckup.end())
+							{
+								set<int> s;
+								edgeNoBckup[point] = s;
+							}
+							edgeNoBckup[point].insert(neipoint);
+							
+							map<int, set<int> >::iterator itr_neipoint3;
+							itr_neipoint3 = edgeNoBckup.find(neipoint);
+							if(itr_neipoint3==edgeNoBckup.end())
+							{
+								set<int> s;
+								edgeNoBckup[neipoint] = s;
+							}
+							edgeNoBckup[neipoint].insert(point);							
+						}
+					}				
+					else if(itr_pointe!=edgeNoBckup.end())
+					{
+						set<int>::iterator itr_neipoint;
+						itr_neipoint = find(edgeNoBckup[point].begin(),edgeNoBckup[point].end(),neipoint);
+						if(itr_neipoint != edgeNoBckup[point].end())
+						{
+							noCount+=1;
+						}
+					}
+				}	
+			}
+			if(weakPresent==1)
+			{
+				map<int, set<int> >::iterator edgeWeakItr;
+				edgeWeakItr = edgeWeak.find(k);
+				if(edgeWeakItr == edgeWeak.end())
+				{
+					set<int> s;
+					edgeWeak[k] = s;
+				}
+				edgeWeak[k].insert(k2);
+				
+				map<int, set<int> >::iterator edgeWeakItr2;
+				edgeWeakItr2 = edgeWeak.find(k2);
+				if(edgeWeakItr2 == edgeWeak.end())
+				{
+					set<int> s;
+					edgeWeak[k2] = s;
+				}
+				edgeWeak[k2].insert(k);
+			}
+			else if(noCount==noOfSubClusters)
+			{
+				if(v2==v2_1 && v1==v1_1)
+				{
+					map<int, set<int> >::iterator edgeNoItr;
+					edgeNoItr = edgeNo.find(k);
+					if(edgeNoItr == edgeNo.end())
+					{
+						set<int> s;
+						edgeNo[k] = s;
+					}
+					edgeNo[k].insert(k2);
+				
+					map<int, set<int> >::iterator edgeNoItr2;
+					edgeNoItr2 = edgeNo.find(k2);
+					if(edgeNoItr2 == edgeNo.end())
+					{
+						set<int> s;
+						edgeNo[k2] = s;
+					}
+					edgeNo[k2].insert(k);
+					std::pair<int, int> var;
+					var.first = k;
+					var.second = k2;
+					noStatusLastIteration[var] = noCount;
+				}
+				else
+				{
+					int noCountNew = 0;
+					set<int> old2;
+					set<int> old1;
+					set_difference(v2_1.begin(),v2_1.end(),v2.begin(),v2.end(),std::inserter(old2,old2.begin()));
+					set_difference(v1_1.begin(),v1_1.end(),v1.begin(),v1.end(),std::inserter(old1,old1.begin()));
+					set<int>::iterator itr_old2;
+					set<int>::iterator itr_v1;
+					for(itr_old2 = old2.begin(); itr_old2 != old2.end(); itr_old2++)
+					{
+						int point = *itr_old2;
+						for(itr_v1 = v1.begin(); itr_v1 != v1.end(); itr_v1++)
+						{
+							int neipoint = *itr_v1;
+							map<int, set<int> >::iterator itr_point;
+							map<int, set<int> >::iterator itr_pointe;
+							itr_point = edgeNo.find(point);
+							itr_pointe = edgeNoBckup.find(point);
+							if(itr_point != edgeNo.end())
+							{
+								set<int>::iterator itr_neipoint;
+								itr_neipoint = find(edgeNo[point].begin(),edgeNo[point].end(),neipoint);
+								if(itr_neipoint != edgeNo[point].end())
+								{
+									noCountNew+=1;
+									edgeNo[point].erase(itr_neipoint);
+									set<int>::iterator itr_point2;
+									itr_point2 = find(edgeNo[neipoint].begin(),edgeNo[neipoint].end(),point);
+									if(itr_point2 != edgeNo[neipoint].end())
+									{
+										edgeNo[neipoint].erase(itr_point2);
+									}
+									if(edgeNo[point].size()==0)
+									{
+										edgeNo.erase(itr_point);
+									}
+									if(edgeNo[neipoint].size()==0)
+									{
+										map<int, set<int> >::iterator itr_neipoint2;
+										itr_neipoint2 = edgeNo.find(neipoint);
+										if(itr_neipoint2 != edgeNo.end())
+										{
+											edgeNo.erase(itr_neipoint2);
+										}
+									}
+									map<int, set<int> >::iterator itr_point3;
+									itr_point3 = edgeNoBckup.find(point);
+									if(itr_point3==edgeNoBckup.end())
+									{
+										set<int> s;
+										edgeNoBckup[point] = s;
+									}
+									edgeNoBckup[point].insert(neipoint);
+									
+									map<int, set<int> >::iterator itr_neipoint3;
+									itr_neipoint3 = edgeNoBckup.find(neipoint);
+									if(itr_neipoint3==edgeNoBckup.end())
+									{
+										set<int> s;
+										edgeNoBckup[neipoint] = s;
+									}
+									edgeNoBckup[neipoint].insert(point);
+								}
+							}				
+							else if(itr_pointe!=edgeNoBckup.end())
+							{
+								set<int>::iterator itr_neipoint;
+								itr_neipoint = find(edgeNoBckup[point].begin(),edgeNoBckup[point].end(),neipoint);
+								if(itr_neipoint != edgeNoBckup[point].end())
+								{
+									noCountNew+=1;
+								}
+							}
+							set<int>::iterator itr_old1;
+							for(itr_old1 = old1.begin(); itr_old1 != old1.end(); itr_old1++)
+							{
+								int p = *itr_old1;
+								pair<int,int> pair1,pair2;
+								pair1.first = point;
+								pair1.second = p;
+								pair2.first = p;
+								pair2.second = point;
+								auto nslt_itr1 = noStatusLastIteration.find(pair1);
+								auto nslt_itr2 = noStatusLastIteration.find(pair2);
+								if(nslt_itr1 != noStatusLastIteration.end())
+								{
+									noCount = noCount + noStatusLastIteration[pair1];
+									noStatusLastIteration.erase(nslt_itr1);
+								}
+								else if(nslt_itr2 != noStatusLastIteration.end())
+								{
+									noCount = noCount + noStatusLastIteration[pair2];
+									noStatusLastIteration.erase(nslt_itr2);
+								}
+							}
+						}
+					}
+					if(noCountNew==(v1.size()*old2.size()))
+					{
+						int totalClust = noCount + noCountNew;
+						if(totalClust == (v1_1.size()*v2_1.size()))
+						{
+							map<int, set<int> >::iterator edgeNoItr;
+							edgeNoItr = edgeNo.find(k);
+							if(edgeNoItr == edgeNo.end())
+							{
+								set<int> s;
+								edgeNo[k] = s;
+							}
+							edgeNo[k].insert(k2);
+						
+							map<int, set<int> >::iterator edgeNoItr2;
+							edgeNoItr2 = edgeNo.find(k2);
+							if(edgeNoItr2 == edgeNo.end())
+							{
+								set<int> s;
+								edgeNo[k2] = s;
+							}
+							edgeNo[k2].insert(k);
+							std::pair<int, int> var;
+							var.first = k;
+							var.second = k2;
+							noStatusLastIteration[var] = totalClust;
+						}
+					}
+				}
+			}
+			else
+			{
+				map<int, set<int> >::iterator edgeUnknownItr;
+				edgeUnknownItr = edgeUnknown.find(k);
+				if(edgeUnknownItr == edgeUnknown.end())
+				{
+					set<int> s;
+					edgeUnknown[k] = s;
+				}
+				edgeUnknown[k].insert(k2);
+			
+				map<int, set<int> >::iterator edgeUnknownItr2;
+				edgeUnknownItr2 = edgeUnknown.find(k2);
+				if(edgeUnknownItr2 == edgeUnknown.end())
+				{
+					set<int> s;
+					edgeUnknown[k2] = s;
+				}
+				edgeUnknown[k2].insert(k);
+			}
+		}
+	}
+	set<int> removeKeys;
+	set<int>::iterator remove_itr;
+	map<int, set<int> >::iterator edgeWeak_itr;
+	set<int> edgeWeakKeys,edgeUnknownKeys,edgeNoKeys,clustersKeys;
+	map<int, set<int> >::iterator map_itr;
+	for(map_itr = edgeWeak.begin(); map_itr != edgeWeak.end(); map_itr++)
+	{
+		edgeWeakKeys.insert(map_itr->first);
+	}
+	for(map_itr = edgeNo.begin(); map_itr != edgeNo.end(); map_itr++)
+	{
+		edgeNoKeys.insert(map_itr->first);
+	}
+	for(map_itr = edgeUnknown.begin(); map_itr != edgeUnknown.end(); map_itr++)
+	{
+		edgeUnknownKeys.insert(map_itr->first);
+	}
+	for(map_itr = clusters.begin(); map_itr != clusters.end(); map_itr++)
+	{
+		clustersKeys.insert(map_itr->first);
+	}
+	set_difference(edgeWeakKeys.begin(),edgeWeakKeys.end(),clustersKeys.begin(),clustersKeys.end(),std::inserter(removeKeys,removeKeys.begin()));
+	for(remove_itr = removeKeys.begin(); remove_itr != removeKeys.end(); remove_itr++)
+	{
+		int u = *remove_itr;
+		edgeWeak_itr = edgeWeak.find(u);
+		if(edgeWeak_itr != edgeWeak.end())
+		{
+			edgeWeak.erase(edgeWeak_itr);
+		}
+	}
+
+	map<int, set<int> >::iterator edgeNo_itr;
+	set_difference(edgeNoKeys.begin(),edgeNoKeys.end(),clustersKeys.begin(),clustersKeys.end(),std::inserter(removeKeys,removeKeys.begin()));
+	for(remove_itr = removeKeys.begin(); remove_itr != removeKeys.end(); remove_itr++)
+	{
+		int u = *remove_itr;
+		edgeNo_itr = edgeNo.find(u);
+		if(edgeNo_itr != edgeNo.end())
+		{
+			edgeNo.erase(edgeNo_itr);
+		}
+	}
+	
+	map<int, set<int> >::iterator edgeUnknown_itr;
+	set_difference(edgeUnknownKeys.begin(),edgeUnknownKeys.end(),clustersKeys.begin(),clustersKeys.end(),std::inserter(removeKeys,removeKeys.begin()));
+	for(remove_itr = removeKeys.begin(); remove_itr != removeKeys.end(); remove_itr++)
+	{
+		int u = *remove_itr;
+		edgeUnknown_itr = edgeUnknown.find(u);
+		if(edgeUnknown_itr != edgeUnknown.end())
+		{
+			edgeUnknown.erase(edgeUnknown_itr);
+		}
+	}
+}
+
+bool stoppingCondition()
+{
+	if(edgeWeak.size()>0||edgeUnknown.size()>0)
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
 
 void anyDBC()
 {	//STARTING STEP:1
@@ -1277,7 +1709,7 @@ void anyDBC()
 	if(edgeYes.size() > 0)
 	{
 		connComp();
-		//mergeAssignNewEdge(); //implement it
+		mergeAssignNewEdge(); //implement it
 	}
 	int iteration = 0;
 	while(true)
@@ -1411,13 +1843,13 @@ void anyDBC()
 			if(edgeYes.size() > 0)
 			{
 				connComp();
-				//mergeAssignNewEdge(); //implement it
+				mergeAssignNewEdge(); //implement it
 			}
 			updateStates();
 			if(edgeYes.size() > 0)
 			{
 				connComp();
-				//mergeAssignNewEdge();
+				mergeAssignNewEdge();
 			}
 		}
 		else
@@ -1430,7 +1862,7 @@ void anyDBC()
 	if(edgeYes.size() > 0)
 	{
 		connComp();
-		// mergeAssignNewEdge();
+		mergeAssignNewEdge();
 	}
 	cout << "Range queries :" << rangeQueryPerformed.size() << "\n";
 	cout << "Core list :" << coreList.size() << "\n";
