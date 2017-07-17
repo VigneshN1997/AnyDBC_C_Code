@@ -10,6 +10,7 @@
 #include <random>
 #include <unordered_set>
 #include <algorithm>
+#include <ctime>
 using namespace std;
 
 map<int, set<int> > neighbourMap; // this will map a point to a set(the set will be the epsilon neighbours of the point)
@@ -34,13 +35,15 @@ map<int, int> usizeList;
 map<int, double> statList;
 map<int, double> degList;
 
+clock_t start_time = clock();
+
 vector<int> popFromNoise;
 map<std::pair<int, int>, int> noStatusLastIteration;
 
 int dimension = 0;
 int num_records = 0;
-int alpha = 100;
-int beta = 50;
+int alpha = 512;
+int beta = 512;
 int minDist = 2;
 int minPts = 5;
 
@@ -1603,7 +1606,7 @@ void anyDBC()
 				int j;
 				for(j = 0; j < touch.size(); j++)
 				{
-					int p = touch[i];
+					int p = touch[j];
 					itr = find(untouchedList.begin(),untouchedList.end(),p);
 					if(itr != untouchedList.end())
 					{
@@ -1613,6 +1616,8 @@ void anyDBC()
 			}
 		}
 	}
+	cout << "Step1 rangeQuery on intial alpha points---" << clock() - start_time << "seconds ---";
+	start_time = clock();
 	/*######################################################################*/
 	cout << "Initial count of range queries: "<< rangeQueryPerformed.size() << "\n";
 	set<int> donePoints;
@@ -1705,11 +1710,17 @@ void anyDBC()
 			}
 		}
 	}
+	cout << "Step2 Find edges between clusters---" << clock() - start_time << "seconds ---";
+	start_time = clock();
 	/*######################################################################*/
 	if(edgeYes.size() > 0)
 	{
 		connComp();
+		cout << "Step3 Found connected components---" << clock() - start_time << "seconds ---";
+		start_time = clock();
 		mergeAssignNewEdge(); //implement it
+		cout << "Step4 Merge edges and assign new edge---" << clock() - start_time << "seconds ---";
+		start_time = clock();
 	}
 	int iteration = 0;
 	while(true)
@@ -1718,16 +1729,20 @@ void anyDBC()
 		cout << "Iteration : " << iteration << "    No. of clusters : " << clusters.size() << "\n";
        	cout << "CoreList : " << coreList.size() << "\n";
        	cout << "BorderList : " << borderList.size() << "\n";
-       	cout << "NoiseList : " << noiseList.size() + neiNoise.size();
+       	cout << "NoiseList : " << noiseList.size() + neiNoise.size() << "\n";
 		if(stoppingCondition()) //implement it
 		{
 			/*######################################################################*/
+			cout << "Step5 Checked stopping condition---" << clock() - start_time << "seconds ---";
+			start_time = clock();
 			calculateStatDegree();
 			vector<int> betaPoints = calculateScore();
 			if(betaPoints.size() == 0)
 			{
 				break;
 			}
+			cout << "Step6 get beta points for further range queries---" << clock() - start_time << "seconds ---";
+			start_time = clock();
 			/*######################################################################*/
 			vector<int>::iterator beta_itr;
 			set<int>::iterator range_itr;
@@ -1839,17 +1854,27 @@ void anyDBC()
 					}
 				}
 			}
+			cout << "Step7 rangeQuery on beta points, and create clusters and edges---" << clock() - start_time << "seconds ---";
+			start_time = clock();
 			/*###############################################################*/
 			if(edgeYes.size() > 0)
 			{
 				connComp();
+				cout << "Step7 merge clusters : Conn Comp---" << clock() - start_time << "seconds ---";
+				start_time = clock();
 				mergeAssignNewEdge(); //implement it
+				cout << "Step7 merge clusters : Merge Comp---" << clock() - start_time << "seconds ---";
+				start_time = clock();
 			}
 			updateStates();
+			cout << "Step8 update states of clusters if possible---" << clock() - start_time << "seconds ---";
+			start_time = clock();
 			if(edgeYes.size() > 0)
 			{
 				connComp();
 				mergeAssignNewEdge();
+				cout << "Step8 Merge any new edges that were formed---" << clock() - start_time << "seconds ---";
+				start_time = clock();
 			}
 		}
 		else
@@ -1859,15 +1884,19 @@ void anyDBC()
 		iteration++;
 	}
 	processOutliers();
+	cout << "Step9 Process outliers---" << clock() - start_time << "seconds ---";
+	start_time = clock();
 	if(edgeYes.size() > 0)
 	{
 		connComp();
 		mergeAssignNewEdge();
+		cout << "Step9 Process outliers, merge any new edges formed---" << clock() - start_time << "seconds ---";
+		start_time = clock();
 	}
 	cout << "Range queries :" << rangeQueryPerformed.size() << "\n";
 	cout << "Core list :" << coreList.size() << "\n";
 	cout << "Border List :" << borderList.size() << "\n";
-	cout << "Noise List :" << noiseList.size() << "\n";
+	cout << "Noise List :" << noiseList.size()+neiNoise.size() << "\n";
 	set<int> range;
 	set<int> diff;
 	for(i = 0; i < num_records; i++)
@@ -1881,18 +1910,12 @@ void anyDBC()
 
 int main(int argc, char* argv[])
 {
+	clock_t s_time = clock();
 	char* file_name = argv[1];
 	dataSet = readData(file_name);
-	// int i,j;
-	// for(i = 0; i < num_records; i++)
-	// {
-	// 	for (int j = 0; j < dimension; j++)
-	// 	{
-	// 		cout.precision(7);
-	// 		cout << fixed << dataSet[i][j] << " ";
-	// 	}
-	// 	cout << "\n";
-	// }
+	cout << "Reading data---" << clock() - start_time << "seconds ---";
+	start_time = clock();
 	anyDBC();
+	cout << "---" << clock() - s_time << "seconds ---";
 	return 0;
 }
